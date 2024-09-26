@@ -1,6 +1,7 @@
 // Package events implements a simple event broadcasting mechanism
 // for usage in broadcasting error messages, postbacks etc. various
 // channels.
+// 实现了一个简单的 *错误* 事件订阅分发
 package events
 
 import (
@@ -39,13 +40,16 @@ func New() *Events {
 // id is the unique identifier for the caller. A caller can only register
 // for subscription once.
 func (ev *Events) Subscribe(id string) (chan Event, error) {
+	// 加锁，防止并发相同id申请通道
 	ev.Lock()
 	defer ev.Unlock()
 
+	// 如果id在event中已经有通道了，直接返回
 	if ch, ok := ev.subs[id]; ok {
 		return ch, nil
 	}
 
+	// 给event注册id通道
 	ch := make(chan Event, 100)
 	ev.subs[id] = ch
 

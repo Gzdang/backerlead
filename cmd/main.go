@@ -69,11 +69,14 @@ type App struct {
 
 var (
 	// Buffered log writer for storing N lines of log entries for the UI.
+	// 错误事件订阅分发，实现了日志写功能，可以给下游订阅发送事件
 	evStream = events.New()
-	bufLog   = buflog.New(5000)
-	lo       = log.New(io.MultiWriter(os.Stdout, bufLog, evStream.ErrWriter()), "",
+	// 最多存5000行的日志实现
+	bufLog = buflog.New(5000)
+	lo     = log.New(io.MultiWriter(os.Stdout, bufLog, evStream.ErrWriter()), "",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
+	// 读配置文件，"." 作为读取koanf时的分隔符
 	ko      = koanf.New(".")
 	fs      stuffbin.FileSystem
 	db      *sqlx.DB
@@ -91,6 +94,7 @@ var (
 )
 
 func init() {
+	// 命令行参数读到koanf
 	initFlags()
 
 	// Display version.
@@ -102,6 +106,7 @@ func init() {
 	lo.Println(buildString)
 
 	// Generate new config.
+	// 默认配置在 config.toml.sample
 	if ko.Bool("new-config") {
 		path := ko.Strings("config")[0]
 		if err := newConfigFile(path); err != nil {
@@ -116,6 +121,7 @@ func init() {
 	initConfigFiles(ko.Strings("config"), ko)
 
 	// Load environment variables and merge into the loaded config.
+	// TODO 可能在脚本里
 	if err := ko.Load(env.Provider("LISTMONK_", ".", func(s string) string {
 		return strings.Replace(strings.ToLower(
 			strings.TrimPrefix(s, "LISTMONK_")), "__", ".", -1)
@@ -129,6 +135,7 @@ func init() {
 
 	// Installer mode? This runs before the SQL queries are loaded and prepared
 	// as the installer needs to work on an empty DB.
+	// sql跑一遍初始化
 	if ko.Bool("install") {
 		// Save the version of the last listed migration.
 		install(migList[len(migList)-1].version, db, fs, !ko.Bool("yes"), ko.Bool("idempotent"))
@@ -136,6 +143,7 @@ func init() {
 	}
 
 	// Check if the DB schema is installed.
+	// 检查sql表
 	if ok, err := checkSchema(db); err != nil {
 		log.Fatalf("error checking schema in DB: %v", err)
 	} else if !ok {
@@ -187,6 +195,7 @@ func main() {
 	}
 
 	// Load i18n language map.
+	// 国际化相关
 	app.i18n = initI18n(app.constants.Lang, fs)
 	cOpt := &core.Opt{
 		Constants: core.Constants{
